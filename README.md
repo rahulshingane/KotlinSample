@@ -73,60 +73,69 @@ public class ListParameterizedType<T> implements ParameterizedType {
   - This class is used to perform all api related operations
 ```
 class RetrofitHelper {
+
     companion object {
         val KEY_SETTINGS = "settings"
         val KEY_DATA = "data"
+
         var progressDialog: ProgressDialog? = null;
+
         fun create(): Retrofit {
             val builder = OkHttpClient().newBuilder()
             builder.readTimeout(10, TimeUnit.SECONDS)
             builder.connectTimeout(5, TimeUnit.SECONDS)
+
             if (BuildConfig.DEBUG) {
                 val interceptor = HttpLoggingInterceptor()
                 interceptor.level = HttpLoggingInterceptor.Level.BODY
                 builder.addInterceptor(interceptor)
             }
+
             builder.addInterceptor { chain ->
                 val request = chain.request().newBuilder().addHeader("key", "value").build()
                 chain.proceed(request)
             }
+
             val client = builder.build()
             val retrofit = Retrofit.Builder()
                     .addCallAdapterFactory(
                             RxJava2CallAdapterFactory.create())
                     .addConverterFactory(
                             GsonConverterFactory.create())
-                    .baseUrl(WebServices.BASE_URL)
+                    .baseUrl(WebServicesK.BASE_URL)
                     .client(client)
                     .build()
+
             return retrofit
         }
+
         fun getWebServices(): WebServices {
-            return create().create(WebServices::class.java)
+            return create().create(WebServicesK::class.java)
         }
 
-        fun call(context: Context?, call: Observable<ResponseBody>) {
+        fun call(context: Context?, call: Single<ResponseBody>) {
             call(context, call, null, -1, false, null)
         }
 
-        fun call(context: Context?, call: Observable<ResponseBody>, callback: ApiCallback?) {
+        fun call(context: Context?, call: Single<ResponseBody>, callback: ApiCallback?) {
             call(context, call, null, -1, false, callback)
         }
 
-        fun call(context: Context?, call: Observable<ResponseBody>, requestCode: Int, callback: ApiCallback?) {
+        fun call(context: Context?, call: Single<ResponseBody>, requestCode: Int, callback: ApiCallback?) {
             call(context, call, null, requestCode, false, callback)
         }
 
-        fun call(context: Context?, call: Observable<ResponseBody>, disposableContainer: CompositeDisposable?, requestCode: Int, callback: ApiCallback?) {
+        fun call(context: Context?, call: Single<ResponseBody>, disposableContainer: CompositeDisposable?, requestCode: Int, callback: ApiCallback?) {
             call(context, call, disposableContainer, requestCode, false, callback)
         }
 
-        fun call(context: Context?, call: Observable<ResponseBody>, disposableContainer: CompositeDisposable?, requestCode: Int, showProgress: Boolean, callback: ApiCallback?) {
+        fun call(context: Context?, call: Single<ResponseBody>, disposableContainer: CompositeDisposable?, requestCode: Int, showProgress: Boolean, callback: ApiCallback?) {
 
             if(!checkInternetConnection(context)){
                 callback?.onNoInternetConnection("Network Not available", requestCode)
                 return
             }
+
             if (showProgress) {
                 if (progressDialog == null) {
                     progressDialog = ProgressDialog(context)
@@ -138,12 +147,8 @@ class RetrofitHelper {
             call
                     .subscribeOn(Schedulers.io())
                     .observeOn(AndroidSchedulers.mainThread())
-                    .subscribe(object : Observer<ResponseBody> {
-                        override fun onSubscribe(d: Disposable) {
-                            disposableContainer?.add(d)
-                        }
-
-                        override fun onNext(t: ResponseBody) {
+                    .subscribe(object : SingleObserver<ResponseBody> {
+                        override fun onSuccess(t: ResponseBody?) {
                             try {
                                 parseResponse(t, callback, requestCode)
                                 callback?.onSuccessWithRawData(t, requestCode)
@@ -155,14 +160,12 @@ class RetrofitHelper {
                             }
                         }
 
-                        override fun onError(e: Throwable) {
-                            callback?.onFailure(e.message, requestCode)
-                            if ((progressDialog != null) && progressDialog!!.isShowing()) {
-                                progressDialog?.dismiss()
-                            }
+                        override fun onSubscribe(d: Disposable) {
+                            disposableContainer?.add(d)
                         }
 
-                        override fun onComplete() {
+                        override fun onError(e: Throwable) {
+                            callback?.onFailure(e.message, requestCode)
                             if ((progressDialog != null) && progressDialog!!.isShowing()) {
                                 progressDialog?.dismiss()
                             }
@@ -231,13 +234,13 @@ interface WebServices {
         val BASE_URL = "http://google.com/WS/"
     }
     @POST("notification_list")
-    fun getNotificationList(@QueryMap map: Map<String, String>): Observable<ResponseBody>
+    fun getNotificationList(@QueryMap map: Map<String, String>): Single<ResponseBody>
 
     @GET("http://ip-api.com/json")
-    fun getLocation(): Observable<ResponseBody>
+    fun getLocation(): Single<ResponseBody>
 
     @GET("http://google.com")
-    fun getList(): Observable<ResponseBody>
+    fun getList(): Single<ResponseBody>
 
 }
 ```
